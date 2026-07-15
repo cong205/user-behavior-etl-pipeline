@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
-from pyspark.sql.types import StructType, StructField, StringType, LongType
+from pyspark.sql.types import StructType, StructField, StringType, LongType, BooleanType
 
 # 1. CẤU HÌNH KẾT NỐI DATABASE POSTGRES (Bên trong Docker)
 PG_URL = "jdbc:postgresql://postgres:5432/airflow"
@@ -8,23 +8,27 @@ PG_USER = "airflow"
 PG_PASSWORD = "airflow"
 
 # Cấu hình đường dẫn lưu "Đánh dấu trang" (Checkpoint) 
-# Chú ý: Đường dẫn này nằm trong thư mục spark_jobs đã được ánh xạ (mount) ra ngoài Docker
 CHECKPOINT_DIR = "/opt/airflow/spark_jobs/checkpoints/wikimedia_events"
 
-# Khai báo cấu trúc bảng (Schema) tương ứng với dữ liệu JSON từ Producer
+# KHAI BÁO SCHEMA MỚI (Khớp 100% với dữ liệu JSON từ Producer)
 schema = StructType([
-    StructField("user", StringType(), True),
-    StructField("title", StringType(), True),
+    StructField("id", LongType(), True),
     StructField("timestamp", LongType(), True),
-    StructField("server_name", StringType(), True),
-    StructField("wiki", StringType(), True)
+    StructField("type", StringType(), True),
+    StructField("wiki", StringType(), True),
+    StructField("title", StringType(), True),
+    StructField("namespace", LongType(), True),
+    StructField("user", StringType(), True),
+    StructField("is_bot", BooleanType(), True),
+    StructField("comment", StringType(), True),
+    StructField("revision_new", LongType(), True),
+    StructField("length_diff", LongType(), True)
 ])
 
 def write_to_postgres(df, epoch_id):
     """
     Hàm này được gọi để ghi cụm dữ liệu (micro-batch) vào Postgres.
     """
-    # Đếm số lượng bản ghi trong batch này để in ra log cho Airflow dễ theo dõi
     batch_count = df.count()
     print(f"🔄 Đang xử lý Batch {epoch_id} với {batch_count} bản ghi...")
     
@@ -52,8 +56,6 @@ def main():
     spark.sparkContext.setLogLevel("WARN")
 
     print("📡 Đang kết nối tới Kafka topic 'wikimedia-events'...")
-    # Đổi startingOffsets thành "earliest" để lần chạy ĐẦU TIÊN nó quét sạch dữ liệu cũ
-    # Các lần chạy sau nó sẽ tự động dùng vị trí đã lưu trong Checkpoint
     kafka_df = spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", "kafka:29092") \
@@ -67,7 +69,6 @@ def main():
 
     print("⚙️ Bắt đầu quét dữ liệu tồn đọng trong Kafka...")
     
-    # THAY ĐỔI QUAN TRỌNG NHẤT DÀNH CHO AIRFLOW NẰM Ở ĐÂY
     query = parsed_df.writeStream \
         .foreachBatch(write_to_postgres) \
         .outputMode("append") \
@@ -75,7 +76,6 @@ def main():
         .trigger(availableNow=True) \
         .start()
 
-    # Lệnh này sẽ block luồng cho đến khi xử lý hết dữ liệu "hiện có" thì tự ngắt
     query.awaitTermination()
     
     print("🎉 ĐÃ HOÀN TẤT! Toàn bộ dữ liệu mới đã được nạp. Spark chuẩn bị tắt...")
