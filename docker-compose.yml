@@ -23,7 +23,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -65,21 +65,22 @@ services:
   # 4. Apache Spark (Xử lý dữ liệu)
   spark-master:
     image: apache/spark:3.5.0
-    environment:
-      - SPARK_MODE=master
+    # Thêm đường dẫn tuyệt đối /opt/spark/ vào trước lệnh
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master
     ports:
       - "8080:8080" # Spark Web UI
       - "7077:7077"
+    volumes:
+      - ./spark_jobs:/opt/airflow/spark_jobs
 
   spark-worker:
     image: apache/spark:3.5.0
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
+    # Thêm đường dẫn tuyệt đối /opt/spark/ vào trước lệnh
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --cores 1 --memory 1G
     depends_on:
       - spark-master
+    volumes:
+      - ./spark_jobs:/opt/airflow/spark_jobs
 
   # 4. Apache Airflow (Điều phối)
   airflow-init:
@@ -107,6 +108,3 @@ services:
     depends_on:
       airflow-init:
         condition: service_completed_successfully
-
-volumes:
-  postgres-db-volume:
