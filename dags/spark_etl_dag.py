@@ -65,7 +65,13 @@ with DAG(
 
     spark_transform_and_load = BashOperator(
         task_id='spark_clean_and_load_postgres',
-        bash_command='spark-submit --master spark://spark-master:7077 /opt/airflow/spark_jobs/batch_processing.py',
+        # Thêm tham số --packages vào ngay sau spark-submit
+        bash_command=(
+            'spark-submit '
+            '--master spark://spark-master:7077 '
+            '--packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0 '
+            '/opt/airflow/spark_jobs/batch_processing.py'
+        )
     )
 
     cleanup_old_data = PythonOperator(
