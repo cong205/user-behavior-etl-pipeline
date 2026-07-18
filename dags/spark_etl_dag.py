@@ -13,8 +13,49 @@ default_args = {
 }
 
 def keep_latest_1000_records():
-    # ... (Giữ nguyên nội dung hàm dọn dẹp bạn đã viết ở bước trước) ...
-    pass
+    try:
+        # 1. Khởi tạo kết nối tới Database (giống với cấu hình ở hàm audit)
+        conn = psycopg2.connect(
+            host="postgres", port="5432", database="airflow", user="airflow", password="airflow"
+        )
+        
+        # Bật chế độ tự động lưu (commit) ngay sau khi chạy lệnh xóa
+        conn.autocommit = True 
+        cur = conn.cursor()
+        
+        # 2. Câu lệnh SQL dọn dẹp dữ liệu cũ
+        # CHÚ Ý: Hãy thay 'timestamp' bằng tên cột thời gian hoặc cột ID tự tăng trong bảng của bạn.
+        delete_query = """
+        DELETE FROM wikimedia_edits
+        WHERE ctid NOT IN (
+            SELECT ctid
+            FROM wikimedia_edits
+            ORDER BY timestamp DESC
+            LIMIT 1000
+        );
+        """
+        
+        # Thực thi lệnh xóa
+        cur.execute(delete_query)
+        
+        # Lấy số lượng dòng đã bị xóa để ghi log
+        deleted_rows = cur.rowcount
+        
+        print("="*40)
+        print("🧹 TIẾN TRÌNH DỌN DẸP DỮ LIỆU")
+        if deleted_rows > 0:
+            print(f"Đã dọn dẹp thành công. Số dòng cũ bị xóa: {deleted_rows}")
+        else:
+            print("Kho dữ liệu hiện có dưới 1000 dòng. Không cần xóa thêm.")
+        print("="*40)
+        
+    except psycopg2.Error as e:
+        print(f"Lỗi SQL trong quá trình dọn dẹp: {e}")
+    finally:
+        # 3. Đóng kết nối an toàn để giải phóng tài nguyên
+        if 'conn' in locals() and conn:
+            cur.close()
+            conn.close()
 
 # HÀM MỚI: Kiểm toán và Báo cáo
 def audit_and_report():
@@ -51,13 +92,12 @@ with DAG(
     'user_behavior_etl_pipeline',
     default_args=default_args,
     description='ETL Pipeline: Health Check -> Spark -> Postgres -> Audit',
-    schedule_interval='*/5 * * * *', 
+    schedule='*/5 * * * *',  # Đã sửa thành "schedule" cho Airflow 2.8+
     catchup=False,              
     tags=['ETL', 'Spark', 'Kafka', 'Postgres']
 ) as dag:
 
     # NÚT ĐẦU: Kiểm tra xem cổng 29092 của Kafka có đang mở không. 
-    # Nếu Kafka chết, lệnh 'nc' (netcat) sẽ thất bại, Airflow sẽ dừng DAG ngay lập tức để báo lỗi.
     check_kafka_health = BashOperator(
         task_id='verify_kafka_is_alive',
         bash_command='nc -z kafka 29092',
@@ -65,7 +105,6 @@ with DAG(
 
     spark_transform_and_load = BashOperator(
         task_id='spark_clean_and_load_postgres',
-        # Thêm tham số --packages vào ngay sau spark-submit
         bash_command=(
             'spark-submit '
             '--master spark://spark-master:7077 '
