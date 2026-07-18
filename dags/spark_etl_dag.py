@@ -14,7 +14,7 @@ default_args = {
 
 def keep_latest_1000_records():
     try:
-        # 1. Khởi tạo kết nối tới Database (giống với cấu hình ở hàm audit)
+        # 1. Khởi tạo kết nối tới Database 
         conn = psycopg2.connect(
             host="postgres", port="5432", database="airflow", user="airflow", password="airflow"
         )
@@ -24,7 +24,6 @@ def keep_latest_1000_records():
         cur = conn.cursor()
         
         # 2. Câu lệnh SQL dọn dẹp dữ liệu cũ
-        # CHÚ Ý: Hãy thay 'timestamp' bằng tên cột thời gian hoặc cột ID tự tăng trong bảng của bạn.
         delete_query = """
         DELETE FROM wikimedia_edits
         WHERE ctid NOT IN (
@@ -57,7 +56,7 @@ def keep_latest_1000_records():
             cur.close()
             conn.close()
 
-# HÀM MỚI: Kiểm toán và Báo cáo
+# HÀM: Kiểm toán và Báo cáo
 def audit_and_report():
     try:
         conn = psycopg2.connect(
@@ -92,7 +91,7 @@ with DAG(
     'user_behavior_etl_pipeline',
     default_args=default_args,
     description='ETL Pipeline: Health Check -> Spark -> Postgres -> Audit',
-    schedule='*/5 * * * *',  # Đã sửa thành "schedule" cho Airflow 2.8+
+    schedule='*/5 * * * *',  
     catchup=False,              
     tags=['ETL', 'Spark', 'Kafka', 'Postgres']
 ) as dag:
@@ -118,11 +117,9 @@ with DAG(
         python_callable=keep_latest_1000_records
     )
 
-    # NÚT CUỐI: Kiểm toán kho dữ liệu
     audit_pipeline = PythonOperator(
         task_id='audit_and_report',
         python_callable=audit_and_report
     )
 
-    # Luồng chạy cực kỳ chặt chẽ:
     check_kafka_health >> spark_transform_and_load >> cleanup_old_data >> audit_pipeline

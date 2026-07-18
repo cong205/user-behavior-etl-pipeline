@@ -10,7 +10,6 @@ PG_PASSWORD = "airflow"
 # Cấu hình đường dẫn lưu "Đánh dấu trang" (Checkpoint) 
 CHECKPOINT_DIR = "/opt/airflow/spark_jobs/checkpoints/wikimedia_events"
 
-# KHAI BÁO SCHEMA MỚI (Khớp 100% với dữ liệu JSON từ Producer)
 schema = StructType([
     StructField("id", LongType(), True),
     StructField("timestamp", LongType(), True),
@@ -26,9 +25,6 @@ schema = StructType([
 ])
 
 def write_to_postgres(df, epoch_id):
-    """
-    Hàm này được gọi để ghi cụm dữ liệu (micro-batch) vào Postgres.
-    """
     batch_count = df.count()
     print(f"🔄 Đang xử lý Batch {epoch_id} với {batch_count} bản ghi...")
     

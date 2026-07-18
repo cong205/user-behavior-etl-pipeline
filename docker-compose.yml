@@ -65,7 +65,6 @@ services:
   # 4. Apache Spark (Xử lý dữ liệu)
   spark-master:
     image: apache/spark:3.5.0
-    # Thêm đường dẫn tuyệt đối /opt/spark/ vào trước lệnh
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master
     ports:
       - "8080:8080" # Spark Web UI
@@ -75,7 +74,6 @@ services:
 
   spark-worker:
     image: apache/spark:3.5.0
-    # Thêm đường dẫn tuyệt đối /opt/spark/ vào trước lệnh
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --cores 1 --memory 1G
     depends_on:
       - spark-master

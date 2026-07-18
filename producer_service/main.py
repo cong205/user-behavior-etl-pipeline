@@ -32,7 +32,7 @@ def main():
 
         print("Đang xả dữ liệu xuống Kafka...")
         
-        # Tự đọc luồng dữ liệu 
+        # Đọc luồng dữ liệu 
         for line in response.iter_lines():
             if line:
                 decoded_line = line.decode('utf-8')
@@ -43,7 +43,7 @@ def main():
                     try:
                         change = json.loads(data_str)
                         
-                        # Trích xuất độ dài (Xử lý an toàn nếu 'length' bị null)
+                        # Trích xuất độ dài 
                         length_dict = change.get("length") or {}
                         length_old = length_dict.get("old") or 0
                         length_new = length_dict.get("new") or 0
@@ -55,12 +55,12 @@ def main():
                         filtered_event = {
                             "id": change.get("id"),
                             "timestamp": change.get("timestamp"),
-                            "type": change.get("type"),           # 'edit', 'new', 'log'...
-                            "wiki": change.get("wiki"),           # VD: 'viwiki', 'enwiki'
+                            "type": change.get("type"),           
+                            "wiki": change.get("wiki"),         
                             
                             # Dữ liệu phục vụ Recommend & Topic Modeling
                             "title": change.get("title"),
-                            "namespace": change.get("namespace"), # = 0 là bài viết bách khoa
+                            "namespace": change.get("namespace"), 
                             "user": change.get("user"),
                             "is_bot": change.get("bot", False),
                             
@@ -72,7 +72,7 @@ def main():
                             "length_diff": length_new - length_old
                         }
                         
-                        # Gửi data vào Kafka (Không dùng flush trong vòng lặp để tận dụng cơ chế batching)
+                        # Gửi data vào Kafka 
                         producer.send(KAFKA_TOPIC, filtered_event)
                         
                         # In log để theo dõi tiến độ
@@ -84,7 +84,6 @@ def main():
     except Exception as e:
         print(f"Lỗi mạng hoặc kết nối bị ngắt: {e}")
     finally:
-        # Đảm bảo xả hết dữ liệu còn đọng trong buffer trước khi đóng kết nối
         producer.flush()
         producer.close()
 

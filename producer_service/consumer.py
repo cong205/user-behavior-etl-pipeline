@@ -13,7 +13,7 @@ def main():
         consumer = KafkaConsumer(
             KAFKA_TOPIC,
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-            auto_offset_reset='latest', # Đổi từ earliest sang latest
+            auto_offset_reset='latest', 
             enable_auto_commit=True,
             value_deserializer=lambda x: json.loads(x.decode('utf-8'))
         )
@@ -24,16 +24,12 @@ def main():
         # Lắng nghe dữ liệu
         for message in consumer:
             data = message.value
-            
-            # Sử dụng "or" để an toàn tuyệt đối với các giá trị null/None
             title = data.get('title') or 'Unknown'
             user = data.get('user') or 'Unknown'
             wiki = data.get('wiki') or 'N/A'
             event_type = data.get('type') or 'N/A'
             is_bot = "🤖 BOT" if data.get('is_bot') else "👤 NGƯỜI"
             length_diff = data.get('length_diff') or 0
-            
-            # Định dạng hiển thị mức độ thay đổi
             diff_str = f"+{length_diff}" if length_diff > 0 else str(length_diff)
             
             print(f"📥 [{wiki.upper()}] {event_type.upper()} | {title}")
