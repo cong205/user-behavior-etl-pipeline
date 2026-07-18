@@ -1,0 +1,10 @@
+# Bỏ qua dữ liệu của Database
+postgres_data/
+
+# Bỏ qua dữ liệu Checkpoint của Spark 
+spark_jobs/checkpoints/
+
+# Bỏ qua các file log không cần thiết 
+logs/
+.idea/
+__pycache__/
