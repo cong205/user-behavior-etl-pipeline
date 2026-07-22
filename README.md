@@ -9,26 +9,63 @@
 
 Dự án triển khai hệ thống Data Pipeline tự động hóa nhằm thu thập và xử lý luồng sự kiện lớn theo hướng tiếp cận Micro-batching, giúp tối ưu hóa tài nguyên máy chủ:
 
-Ingestion: Thu thập luồng sự kiện trực tiếp từ nguồn mở (Wikimedia EventStreams) và đưa vào hệ thống hàng đợi thông báo qua Apache Kafka.
+*   **Ingestion:** Thu thập luồng sự kiện trực tiếp từ nguồn mở (Wikimedia EventStreams) và đưa vào hệ thống hàng đợi thông báo qua Apache Kafka.
+*   **Orchestration & Transform:** Ứng dụng Apache Airflow làm trung tâm điều phối (Control Flow), định kỳ kích hoạt các tác vụ Apache Spark để đọc dữ liệu từ Kafka, thực hiện các quy trình ETL (làm sạch, chuẩn hóa định dạng, tính toán) theo từng lô.
+*   **Storage & Downstream:** Nạp dữ liệu đã tinh chỉnh vào Cơ sở dữ liệu để phục vụ xuất báo cáo và làm đầu vào cho các thuật toán Machine Learning. Hệ thống được container hóa hoàn toàn bằng Docker, đảm bảo tính dễ dàng khi triển khai và mở rộng.
 
-Orchestration & Transform: Ứng dụng Apache Airflow làm trung tâm điều phối (Control Flow), định kỳ kích hoạt các tác vụ Apache Spark để đọc dữ liệu từ Kafka, thực hiện các quy trình ETL (làm sạch, chuẩn hóa định dạng, tính toán) theo từng lô.
-
-Storage & Downstream: Nạp dữ liệu đã tinh chỉnh vào Cơ sở dữ liệu để phục vụ xuất báo cáo và làm đầu vào cho các thuật toán Machine Learning. Hệ thống được container hóa hoàn toàn bằng Docker, đảm bảo tính dễ dàng khi triển khai và mở rộng.
 <img width="1367" height="339" alt="{008AD818-665B-4CE3-96A1-CC27763C3BA9}" src="https://github.com/user-attachments/assets/7b534eb3-9cd8-4521-9a3e-5cbbd52a4bd2" />
 
+---
+
 ## Summary
+
 ### 1. System Overview
 Hệ thống chịu trách nhiệm tự động hóa hoàn chỉnh luồng xử lý dữ liệu (**Data Pipeline**):
-* Tự động trích xuất luồng dữ liệu sự kiện thời gian thực từ Kafka Producer.
-* Biến đổi, làm phẳng dữ liệu JSON bán cấu trúc, áp dụng định nghĩa lược đồ chặt chẽ (`StructType`) và làm sạch dữ liệu bằng PySpark.
-* Tải và đồng bộ hóa dữ liệu đã qua xử lý vào kho lưu trữ PostgreSQL.
-* Quản lý vòng đời dữ liệu bằng cách tự động dọn dẹp các bản ghi cũ (giữ lại 1000 bản ghi mới nhất) để tối ưu hóa không gian lưu trữ.
-* Tự động kiểm tra sức khỏe hệ thống (**health checks**) và sinh báo cáo kiểm toán số lượng bot/người thật thông qua Apache Airflow.
+*   Tự động trích xuất luồng dữ liệu sự kiện thời gian thực từ Kafka Producer.
+*   Biến đổi, làm phẳng dữ liệu JSON bán cấu trúc, áp dụng định nghĩa lược đồ chặt chẽ (`StructType`) và làm sạch dữ liệu bằng PySpark.
+*   Tải và đồng bộ hóa dữ liệu đã qua xử lý vào kho lưu trữ PostgreSQL.
+*   Quản lý vòng đời dữ liệu bằng cách tự động dọn dẹp các bản ghi cũ (giữ lại 1000 bản ghi mới nhất) để tối ưu hóa không gian lưu trữ.
+*   Tự động kiểm tra sức khỏe hệ thống (**health checks**) và sinh báo cáo kiểm toán số lượng bot/người thật thông qua Apache Airflow.
 
 ### 2. Technologies Used
-* **Data Orchestration:** Apache Airflow
-* **Data Processing:** Apache Spark (PySpark)
-* **Message Broker (Streaming):** Apache Kafka, Zookeeper
-* **Database:** PostgreSQL
-* **Programming Language:** Python, SQL (psycopg2)
-* **Containerization & Deployment:** Docker, Docker Compose
+*   **Data Orchestration:** Apache Airflow
+*   **Data Processing:** Apache Spark (PySpark)
+*   **Message Broker (Streaming):** Apache Kafka, Zookeeper
+*   **Database:** PostgreSQL
+*   **Programming Language:** Python, SQL (psycopg2)
+*   **Containerization & Deployment:** Docker, Docker Compose
+
+---
+
+## Installation and Setup
+
+> 📝 **Lưu ý:** Trước khi bắt đầu, hãy đảm bảo máy tính của bạn đã cài đặt sẵn **Docker Desktop** (trạng thái Engine running) và Git.
+> 
+> Sau khi hoàn thành các bước dưới đây, bạn sẽ có một cụm hệ thống phân tán hoàn chỉnh chạy ngay trên máy cá nhân.
+
+### Bước 1: Clone Dự án về máy tính
+
+### Bước 2: Mở Terminal hoặc PowerShell
+* Di chuyển vào thư mục dự án: `cd user-behavior-etl-pipeline`
+* Khởi động hệ thống bằng Docker Compose: `docker-compose up -d --build`
+
+### Bước 3: Thiết lập Pipeline Tự động hóa trên Airflow
+* Mở trình duyệt web và truy cập vào giao diện Airflow: `http://localhost:8081`
+* Đăng nhập với tài khoản: Username `admin` / Password `admin` (hoặc theo cấu hình của bạn).
+* Tại màn hình DAGs, tìm DAG có tên `user_behavior_etl_pipeline`.
+* Bật công tắc (Toggle) màu xanh bên cạnh tên DAG để kích hoạt chế độ chạy tự động.
+* Hoặc bấm nút **Trigger DAG** (Nút Play) để luồng dữ liệu chạy ngay lập tức.
+
+### Bước 4: Kiểm tra dữ liệu
+* Sử dụng **pgAdmin** (kết nối cổng 5433)
+* Thông tin kết nối đúng như sau:
+  * **Host name/address:** `127.0.0.1`
+  * **Port:** `5433`
+  * **Username:** `airflow`
+  * **Password:** `airflow`
+
+---
+
+## 🔗 Link dataset (Streaming Source)
+Dự án sử dụng luồng dữ liệu thời gian thực từ API của Wikimedia:  
+[https://wikitech.wikimedia.org/wiki/Event_Platform/EventStreams](https://wikitech.wikimedia.org/wiki/Event_Platform/EventStreams)
