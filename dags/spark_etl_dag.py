@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
+from airflow.hooks.base import BaseHook
 from datetime import datetime, timedelta
 import psycopg2
 
@@ -12,63 +13,57 @@ default_args = {
     'retry_delay': timedelta(minutes=3), 
 }
 
-def keep_latest_1000_records():
+def get_postgres_connection():
+    # Sử dụng Airflow Connections để không bị lộ thông tin đăng nhập
+    conn_info = BaseHook.get_connection("postgres_default")
+    return psycopg2.connect(
+        host=conn_info.host or "postgres", 
+        port=conn_info.port or "5432", 
+        database=conn_info.schema or "airflow", 
+        user=conn_info.login or "airflow", 
+        password=conn_info.password or "airflow"
+    )
+
+def cleanup_old_records():
     try:
-        # 1. Khởi tạo kết nối tới Database 
-        conn = psycopg2.connect(
-            host="postgres", port="5432", database="airflow", user="airflow", password="airflow"
-        )
-        
-        # Bật chế độ tự động lưu (commit) ngay sau khi chạy lệnh xóa
+        conn = get_postgres_connection()
         conn.autocommit = True 
         cur = conn.cursor()
         
-        # 2. Câu lệnh SQL dọn dẹp dữ liệu cũ
+        # Xóa dữ liệu cũ hơn 24 giờ dựa trên timestamp (giả định timestamp là số nguyên milliseconds)
+        # Nếu timestamp là seconds, sẽ cần điều chỉnh / 1000, 
+        # nhưng thông thường log sự kiện để timestamp ms.
         delete_query = """
         DELETE FROM wikimedia_edits
-        WHERE ctid NOT IN (
-            SELECT ctid
-            FROM wikimedia_edits
-            ORDER BY timestamp DESC
-            LIMIT 1000
-        );
+        WHERE timestamp < (EXTRACT(EPOCH FROM (NOW() - INTERVAL '1 DAY')) * 1000);
         """
         
-        # Thực thi lệnh xóa
         cur.execute(delete_query)
-        
-        # Lấy số lượng dòng đã bị xóa để ghi log
         deleted_rows = cur.rowcount
         
         print("="*40)
-        print("🧹 TIẾN TRÌNH DỌN DẸP DỮ LIỆU")
+        print("🧹 TIẾN TRÌNH DỌN DẸP DỮ LIỆU CŨ")
         if deleted_rows > 0:
-            print(f"Đã dọn dẹp thành công. Số dòng cũ bị xóa: {deleted_rows}")
+            print(f"Đã dọn dẹp thành công. Số dòng cũ (>24h) bị xóa: {deleted_rows}")
         else:
-            print("Kho dữ liệu hiện có dưới 1000 dòng. Không cần xóa thêm.")
+            print("Không có dữ liệu nào cũ hơn 24 giờ.")
         print("="*40)
         
     except psycopg2.Error as e:
         print(f"Lỗi SQL trong quá trình dọn dẹp: {e}")
     finally:
-        # 3. Đóng kết nối an toàn để giải phóng tài nguyên
         if 'conn' in locals() and conn:
             cur.close()
             conn.close()
 
-# HÀM: Kiểm toán và Báo cáo
 def audit_and_report():
     try:
-        conn = psycopg2.connect(
-            host="postgres", port="5432", database="airflow", user="airflow", password="airflow"
-        )
+        conn = get_postgres_connection()
         cur = conn.cursor()
         
-        # Đếm tổng số bản ghi hiện có
         cur.execute("SELECT COUNT(*) FROM wikimedia_edits;")
         total_rows = cur.fetchone()[0]
         
-        # Đếm số lượng đóng góp của người thật vs Bot
         cur.execute("SELECT is_bot, COUNT(*) FROM wikimedia_edits GROUP BY is_bot;")
         stats = cur.fetchall()
         
@@ -96,7 +91,6 @@ with DAG(
     tags=['ETL', 'Spark', 'Kafka', 'Postgres']
 ) as dag:
 
-    # NÚT ĐẦU: Kiểm tra xem cổng 29092 của Kafka có đang mở không. 
     check_kafka_health = BashOperator(
         task_id='verify_kafka_is_alive',
         bash_command='nc -z kafka 29092',
@@ -114,7 +108,7 @@ with DAG(
 
     cleanup_old_data = PythonOperator(
         task_id='cleanup_old_postgres_data',
-        python_callable=keep_latest_1000_records
+        python_callable=cleanup_old_records
     )
 
     audit_pipeline = PythonOperator(

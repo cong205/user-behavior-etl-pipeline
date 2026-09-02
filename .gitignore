@@ -8,3 +8,4 @@ spark_jobs/checkpoints/
 logs/
 .idea/
 __pycache__/
+.env

@@ -1,0 +1,54 @@
+import pytest
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType
+import sys
+import os
+
+# Thêm thư mục gốc vào sys.path để có thể import module
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from spark_jobs.batch_processing import transform_kafka_data, schema
+
+@pytest.fixture(scope="session")
+def spark():
+    """Tạo SparkSession dùng chung cho toàn bộ các bài test."""
+    spark_session = SparkSession.builder \
+        .appName("pytest-spark") \
+        .master("local[1]") \
+        .getOrCreate()
+    yield spark_session
+    spark_session.stop()
+
+def test_transform_kafka_data(spark):
+    """
+    Test hàm transform_kafka_data: Đảm bảo dữ liệu JSON từ Kafka 
+    được parse đúng theo schema định sẵn.
+    """
+    # 1. Tạo dữ liệu giả lập (Kafka trả về dữ liệu kiểu binary/string ở cột value)
+    sample_json = '{"id": 12345, "timestamp": 1693563914, "type": "edit", "wiki": "enwiki", "title": "Python", "namespace": 0, "user": "test_user", "is_bot": false, "comment": "Fix typo", "revision_new": 9876543, "length_diff": 10}'
+    
+    # Tạo DataFrame mô phỏng dạng dữ liệu của Kafka stream
+    kafka_schema = StructType([StructField("value", StringType(), True)])
+    kafka_df = spark.createDataFrame([(sample_json,)], schema=kafka_schema)
+
+    # 2. Chạy hàm cần test
+    result_df = transform_kafka_data(kafka_df)
+
+    # 3. Kiểm tra kết quả (so sánh bằng các collect row đầu tiên)
+    assert result_df.count() == 1
+    
+    row = result_df.collect()[0]
+    assert row["id"] == 12345
+    assert row["timestamp"] == 1693563914
+    assert row["type"] == "edit"
+    assert row["wiki"] == "enwiki"
+    assert row["title"] == "Python"
+    assert row["namespace"] == 0
+    assert row["user"] == "test_user"
+    assert row["is_bot"] is False
+    assert row["comment"] == "Fix typo"
+    assert row["revision_new"] == 9876543
+    assert row["length_diff"] == 10
+    
+    # Kiểm tra schema kết quả có khớp không
+    assert result_df.schema == schema
