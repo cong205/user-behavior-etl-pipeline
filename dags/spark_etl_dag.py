@@ -1,7 +1,6 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
-from airflow.hooks.base import BaseHook
 from datetime import datetime, timedelta
 import psycopg2
 
@@ -13,15 +12,17 @@ default_args = {
     'retry_delay': timedelta(minutes=3), 
 }
 
+import os
+
 def get_postgres_connection():
-    # Sử dụng Airflow Connections để không bị lộ thông tin đăng nhập
-    conn_info = BaseHook.get_connection("postgres_default")
+    # Sử dụng os.environ để lấy cấu hình kết nối thay vì Airflow Connections 
+    # để tránh lỗi khi connection postgres_default chưa được tạo.
     return psycopg2.connect(
-        host=conn_info.host or "postgres", 
-        port=conn_info.port or "5432", 
-        database=conn_info.schema or "airflow", 
-        user=conn_info.login or "airflow", 
-        password=conn_info.password or "airflow"
+        host=os.environ.get("POSTGRES_HOST", "postgres"), 
+        port=os.environ.get("POSTGRES_PORT", "5432"), 
+        database=os.environ.get("POSTGRES_DB", "airflow"), 
+        user=os.environ.get("POSTGRES_USER", "airflow"), 
+        password=os.environ.get("POSTGRES_PASSWORD", "airflow")
     )
 
 def cleanup_old_records():

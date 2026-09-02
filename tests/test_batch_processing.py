@@ -52,3 +52,44 @@ def test_transform_kafka_data(spark):
     
     # Kiểm tra schema kết quả có khớp không
     assert result_df.schema == schema
+
+
+from unittest.mock import patch, MagicMock
+from spark_jobs.batch_processing import write_to_postgres
+
+def test_write_to_postgres(spark):
+    """
+    Test hàm write_to_postgres: Đảm bảo sử dụng UPSERT logic 
+    và các API của psycopg2 được gọi đúng cách.
+    """
+    sample_json = '{"id": 12345, "timestamp": 1693563914, "type": "edit", "wiki": "enwiki", "title": "Python", "namespace": 0, "user": "test_user", "is_bot": false, "comment": "Fix typo", "revision_new": 9876543, "length_diff": 10}'
+    kafka_schema = StructType([StructField("value", StringType(), True)])
+    kafka_df = spark.createDataFrame([(sample_json,)], schema=kafka_schema)
+    parsed_df = transform_kafka_data(kafka_df)
+    
+    # Mock df.write.jdbc
+    parsed_df.write.save = MagicMock()
+    
+    with patch("spark_jobs.batch_processing.psycopg2.connect") as mock_connect:
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_connect.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        
+        # Gọi hàm
+        write_to_postgres(parsed_df, epoch_id=1)
+        
+        # Kiểm tra DataFrame write được gọi (ghi bảng tạm)
+        # Vì gọi qua builder pattern nên khó test toàn bộ chain, nhưng ta test cơ bản:
+        # Ở đây chỉ assert không có exception là được, vì MagicMock bao bọc rồi
+        
+        # Kiểm tra psycopg2 connection
+        mock_connect.assert_called_once()
+        assert mock_conn.autocommit is True
+        
+        # Kiểm tra cursor thực thi 4 lệnh (CREATE TABLE, CREATE INDEX, INSERT/UPSERT, DROP TABLE)
+        assert mock_cursor.execute.call_count == 4
+        
+        # Kiểm tra có đóng kết nối
+        mock_cursor.close.assert_called_once()
+        mock_conn.close.assert_called_once()

@@ -24,7 +24,7 @@ Hệ thống chịu trách nhiệm tự động hóa hoàn chỉnh luồng xử 
 *   Tự động trích xuất luồng dữ liệu sự kiện thời gian thực từ Kafka Producer.
 *   Biến đổi, làm phẳng dữ liệu JSON bán cấu trúc, áp dụng định nghĩa lược đồ chặt chẽ (`StructType`) và làm sạch dữ liệu bằng PySpark.
 *   Tải và đồng bộ hóa dữ liệu đã qua xử lý vào kho lưu trữ PostgreSQL.
-*   Quản lý vòng đời dữ liệu bằng cách tự động dọn dẹp các bản ghi cũ (giữ lại 1000 bản ghi mới nhất) để tối ưu hóa không gian lưu trữ.
+*   Quản lý vòng đời dữ liệu bằng cách tự động dọn dẹp các bản ghi cũ (xóa dữ liệu cũ hơn 24 giờ) để tối ưu hóa không gian lưu trữ.
 *   Tự động kiểm tra sức khỏe hệ thống (**health checks**) và sinh báo cáo kiểm toán số lượng bot/người thật thông qua Apache Airflow.
 
 ### 2. Technologies Used

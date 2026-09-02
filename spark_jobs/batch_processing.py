@@ -87,6 +87,12 @@ def write_to_postgres(df, epoch_id):
                 );
             """)
             
+            # Đảm bảo có Index trên timestamp để tối ưu truy vấn dọn dẹp
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_wikimedia_edits_timestamp 
+                ON wikimedia_edits(timestamp);
+            """)
+            
             # Thực thi MERGE / UPSERT
             upsert_query = f"""
                 INSERT INTO wikimedia_edits 
